@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard de Pedidos</title>
+<style>
+  :root{
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --surface-2: #f2f1ed;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --series-1: #2a78d6;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --serious: #ec835a;
+    --critical: #d03b3b;
+    --success-text: #006300;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface: #1a1a19;
+      --surface-2: #232322;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #898781;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255,255,255,0.10);
+      --series-1: #3987e5;
+      --good: #0ca30c;
+      --warning: #fab219;
+      --serious: #ec835a;
+      --critical: #e66767;
+      --success-text: #0ca30c;
+    }
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; background:var(--page); color:var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #app{ max-width: 1180px; margin: 0 auto; padding: 20px 16px 64px; }
+  header.top{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+  header.top h1{ font-size:20px; margin:0; }
+  header.top .sub{ color:var(--text-secondary); font-size:13px; margin-top:2px; }
+  .btn{ appearance:none; border:1px solid var(--border); background:var(--surface); color:var(--text-primary);
+    padding:9px 16px; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600; }
+  .btn:hover{ background:var(--surface-2); }
+  .btn.primary{ background:var(--series-1); border-color:var(--series-1); color:#fff; }
+  .btn.primary:hover{ filter:brightness(1.08); }
+  .btn:disabled{ opacity:.5; cursor:not-allowed; }
+  .card{ background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; }
+  .banner{ background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:12px 14px;
+    font-size:13px; color:var(--text-secondary); margin-bottom:16px; }
+  .banner.warn{ border-color: color-mix(in srgb, var(--warning) 40%, var(--border)); }
+  .banner code{ background:var(--surface); padding:1px 5px; border-radius:4px; }
+  #authScreen{ display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
+    padding:80px 20px; gap:14px; }
+  #authScreen p{ color:var(--text-secondary); max-width:440px; margin:0; font-size:14px; }
+  #dash{ display:none; }
+  .toolbar{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:16px; }
+  select, input[type="text"]{ background:var(--surface); border:1px solid var(--border); color:var(--text-primary);
+    padding:8px 10px; border-radius:8px; font-size:13px; }
+  .kpi-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(160px,1fr)); gap:12px; margin-bottom:18px; }
+  .kpi-tile .kpi-label{ font-size:12px; color:var(--text-secondary); font-weight:600; text-transform:uppercase; letter-spacing:.02em; }
+  .kpi-tile .kpi-value{ font-size:26px; font-weight:700; margin-top:6px; font-variant-numeric: proportional-nums; }
+  .charts-grid{ display:grid; grid-template-columns: 1.3fr 1fr; gap:14px; margin-bottom:14px; }
+  @media (max-width: 820px){ .charts-grid{ grid-template-columns:1fr; } }
+  .chart-card h3{ margin:0 0 12px; font-size:14px; }
+  .bar-row{ display:flex; align-items:center; gap:10px; margin-bottom:9px; font-size:13px; }
+  .bar-label{ width:110px; flex-shrink:0; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bar-track{ flex:1; background:var(--surface-2); border-radius:7px; height:14px; overflow:hidden; }
+  .bar-fill{ height:100%; border-radius:7px; min-width:3px; }
+  .bar-value{ width:64px; text-align:right; flex-shrink:0; font-variant-numeric: tabular-nums; color:var(--text-primary); font-weight:600; }
+  .empty{ color:var(--text-muted); font-size:13px; text-align:center; padding:24px 0; }
+  table.clientes{ width:100%; border-collapse:collapse; font-size:13px; }
+  table.clientes th{ text-align:left; color:var(--text-muted); font-weight:600; font-size:11px; text-transform:uppercase;
+    padding:4px 6px; border-bottom:1px solid var(--grid); }
+  table.clientes td{ padding:6px 6px; border-bottom:1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  #svgRevenue{ width:100%; height:180px; display:block; }
+  .tooltip{ position:fixed; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:6px 10px;
+    font-size:12px; pointer-events:none; box-shadow:0 4px 14px rgba(0,0,0,.15); display:none; z-index:50; }
+  .table-wrap{ overflow-x:auto; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
+  table.data{ border-collapse:collapse; width:100%; font-size:13px; min-width:1100px; }
+  table.data th{ position:sticky; top:0; background:var(--surface-2); text-align:left; font-size:11px; text-transform:uppercase;
+    color:var(--text-muted); padding:8px 10px; border-bottom:1px solid var(--border); white-space:nowrap; }
+  table.data td{ padding:6px 10px; border-bottom:1px solid var(--grid); white-space:nowrap; }
+  table.data td[contenteditable="true"]{ cursor:text; }
+  table.data td[contenteditable="true"]:hover{ background: color-mix(in srgb, var(--series-1) 8%, transparent); }
+  table.data td[contenteditable="true"]:focus{ outline:2px solid var(--series-1); outline-offset:-2px; background:var(--surface); }
+  table.data td.saving{ background: color-mix(in srgb, var(--warning) 18%, transparent); }
+  table.data td.saved{ background: color-mix(in srgb, var(--good) 18%, transparent); }
+  table.data td.error{ background: color-mix(in srgb, var(--critical) 22%, transparent); }
+  .pager{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px; font-size:13px; color:var(--text-secondary); }
+  .status-dot{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+  footer.meta{ margin-top:24px; font-size:12px; color:var(--text-muted); text-align:center; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="top">
+    <div>
+      <h1>Dashboard de Pedidos</h1>
+      <div class="sub" id="sheetSub">Conectado a Google Sheets</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <select id="sheetSelect" style="display:none;"></select>
+      <span id="connStatus" class="sub" style="display:none;"></span>
+      <button class="btn" id="btnRefresh" style="display:none;">Actualizar</button>
+      <button class="btn primary" id="btnConnect">Conectar con Google</button>
+    </div>
+  </header>
+
+  <div id="configWarning" class="banner warn" style="display:none;">
+    Falta configurar tu <strong>Client ID</strong> de Google Cloud en este archivo (variable <code>CLIENT_ID</code> al inicio del script). Revisa la guía de configuración que viene junto a este archivo.
+  </div>
+
+  <div id="authScreen" class="card">
+    <p><strong>Este dashboard lee y edita tu Google Sheet en vivo.</strong> Al conectar, Google te pedirá iniciar sesión y autorizar acceso a tus hojas de cálculo. Nada se comparte con nadie más: la conexión es directa entre tu navegador y tu cuenta de Google.</p>
+    <button class="btn primary" id="btnConnect2">Conectar con Google</button>
+    <p id="authError" style="color:var(--critical); display:none;"></p>
+  </div>
+
+  <div id="dash">
+    <div class="toolbar">
+      <select id="filterEstado"><option value="">Todos los estados</option></select>
+      <select id="filterDate">
+        <option value="all">Todo el periodo</option>
+        <option value="today">Hoy</option>
+        <option value="7">Últimos 7 días</option>
+        <option value="30">Últimos 30 días</option>
+        <option value="month">Este mes</option>
+      </select>
+      <input type="text" id="filterSearch" placeholder="Buscar por nombre, # pedido, producto o teléfono...">
+      <span style="flex:1"></span>
+      <button class="btn" id="btnAddRow">+ Nuevo pedido</button>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="card kpi-tile"><div class="kpi-label">Pedidos</div><div class="kpi-value" id="kpiPedidos">–</div></div>
+      <div class="card kpi-tile"><div class="kpi-label">Ingresos entregados</div><div class="kpi-value" id="kpiIngresos">–</div></div>
+      <div class="card kpi-tile"><div class="kpi-label">Ticket promedio</div><div class="kpi-value" id="kpiTicket">–</div></div>
+      <div class="card kpi-tile"><div class="kpi-label">Tasa de entrega</div><div class="kpi-value" id="kpiTasa">–</div></div>
+      <div class="card kpi-tile"><div class="kpi-label">Comisiones (envío)</div><div class="kpi-value" id="kpiComisiones">–</div></div>
+      <div class="card kpi-tile"><div class="kpi-label">Clientes únicos</div><div class="kpi-value" id="kpiClientes">–</div></div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="card chart-card">
+        <h3>Ingresos por día (pedidos entregados)</h3>
+        <svg id="svgRevenue"></svg>
+      </div>
+      <div class="card chart-card">
+        <h3>Pedidos por estado</h3>
+        <div id="chartStatus"></div>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="card chart-card">
+        <h3>Top productos por ingresos</h3>
+        <div id="chartProducts"></div>
+      </div>
+      <div class="card chart-card">
+        <h3>Top clientes</h3>
+        <table class="clientes">
+          <thead><tr><th>Cliente</th><th>Pedidos</th><th>Total</th></tr></thead>
+          <tbody id="tableClientes"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="data">
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+    <div class="pager">
+      <span id="pageInfo"></span>
+      <div style="display:flex; gap:8px;">
+        <button class="btn" id="btnPrev">← Anterior</button>
+        <button class="btn" id="btnNext">Siguiente →</button>
+      </div>
+    </div>
+
+    <footer class="meta">Los cambios que hagas en la tabla se guardan directamente en tu Google Sheet.</footer>
+  </div>
+
+</div>
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+/* ============ CONFIGURA AQUÍ ============ */
+const CONFIG = {
+  CLIENT_ID: 'PON_AQUI_TU_CLIENT_ID.apps.googleusercontent.com',
+  SPREADSHEET_ID: '1Z8joni3pgds996gmoCy8eZmh2kRtoJ8PRsfBnqekyrA',
+  DEFAULT_SHEET_ID: 1967861913,
+  SCOPES: 'https://www.googleapis.com/auth/spreadsheets',
+};
+/* ========================================= */
+
+let accessToken = null;
+let tokenClient = null;
+let sheetsMeta = [];
+let currentSheetTitle = null;
+let headerRow = [];
+let colIndex = {};
+let rows = [];
+let filteredRows = [];
+let currentPage = 1;
+const PAGE_SIZE = 50;
+
+const HEADER_ALIASES = {
+  'FECHA':'fecha','PEDIDO':'pedido','GUIA':'guia','NOMBRE':'nombre','TELEFONO':'telefono',
+  'PRODUCTO':'producto','DIRECCION':'direccion','MUNICIPIO':'municipio','DEPARTAMENTO':'departamento',
+  'PRECIO':'precio','ESTADO':'estado','ESTADO DE PAGO':'estado_pago','ENVIO':'envio','COMISION':'comision',
+  'PAGADO':'pagado','FECHA DE PAGO':'fecha_pago','FECHA DEVOLUCION':'fecha_devolucion',
+  'FECHA PREPARACION':'fecha_preparacion','T ENTREGA':'t_entrega','VER ESTADO':'ver_estado'
+};
+const READONLY_KEYS = new Set(['t_entrega','ver_estado']);
+const VISIBLE_COLUMNS = ['fecha','pedido','guia','nombre','telefono','producto','municipio','departamento',
+  'precio','estado','estado_pago','envio','comision','pagado','fecha_pago'];
+const COLUMN_LABELS = {fecha:'Fecha',pedido:'# Pedido',guia:'# Guía',nombre:'Nombre',telefono:'Teléfono',
+  producto:'Producto',municipio:'Municipio',departamento:'Departamento',precio:'Precio',estado:'Estado',
+  estado_pago:'Estado pago',envio:'Envío',comision:'Comisión',pagado:'Pagado',fecha_pago:'Fecha pago'};
+
+function normalizeHeader(h){
+  return (h||'').toString().replace(/^#/, '').normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .toUpperCase().replace(/\s+/g,' ').trim();
+}
+function colLetter(index){
+  let s=''; let n=index+1;
+  while(n>0){ const r=(n-1)%26; s=String.fromCharCode(65+r)+s; n=Math.floor((n-1)/26); }
+  return s;
+}
+function parseMoney(v){
+  if(v==null) return 0;
+  const n = parseFloat(String(v).replace(/[^0-9.\-]/g,''));
+  return isNaN(n) ? 0 : n;
+}
+function fmtMoney(n){ return '$' + n.toLocaleString('es-SV', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+const MESES = {enero:0,febrero:1,marzo:2,abril:3,mayo:4,junio:5,julio:6,agosto:7,septiembre:8,setiembre:8,octubre:9,noviembre:10,diciembre:11};
+function parseFecha(str){
+  if(!str) return null;
+  str = String(str).trim();
+  let m = str.match(/(\d{1,2})\s+de\s+([a-záéíóúñ]+)\s+de\s+(\d{4})/i);
+  if(m){
+    const mk = m[2].normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+    const mon = MESES[mk];
+    if(mon!=null) return new Date(parseInt(m[3],10), mon, parseInt(m[1],10));
+  }
+  m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(m) return new Date(parseInt(m[3],10), parseInt(m[2],10)-1, parseInt(m[1],10));
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
+function get(row, key){
+  const i = colIndex[key];
+  if(i==null) return '';
+  return row.values[i]!=null ? row.values[i] : '';
+}
+
+/* ---------- Auth (Google Identity Services) ---------- */
+function initGis(){
+  if(!window.google || !google.accounts){ setTimeout(initGis, 300); return; }
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CONFIG.CLIENT_ID,
+    scope: CONFIG.SCOPES,
+    callback: (resp)=>{
+      if(resp.error){
+        showAuthError('No se pudo autenticar: ' + resp.error);
+        return;
+      }
+      accessToken = resp.access_token;
+      document.getElementById('authScreen').style.display='none';
+      document.getElementById('dash').style.display='block';
+      document.getElementById('btnConnect').style.display='none';
+      document.getElementById('btnRefresh').style.display='inline-block';
+      document.getElementById('sheetSelect').style.display='inline-block';
+      document.getElementById('connStatus').style.display='inline-block';
+      document.getElementById('connStatus').textContent = 'Conectado';
+      bootstrapData();
+    }
+  });
+  document.getElementById('btnConnect').disabled = false;
+  document.getElementById('btnConnect2').disabled = false;
+}
+function showAuthError(msg){
+  const el = document.getElementById('authError');
+  el.textContent = msg; el.style.display='block';
+}
+function requestAuth(){
+  if(!tokenClient){ showAuthError('Google todavía no ha cargado, intenta de nuevo en un segundo.'); return; }
+  tokenClient.requestAccessToken({ prompt: accessToken ? '' : 'consent' });
+}
+document.getElementById('btnConnect').addEventListener('click', requestAuth);
+document.getElementById('btnConnect2').addEventListener('click', requestAuth);
+document.getElementById('btnConnect').disabled = true;
+document.getElementById('btnConnect2').disabled = true;
+if(CONFIG.CLIENT_ID.indexOf('PON_AQUI') === 0){
+  document.getElementById('configWarning').style.display='block';
+}
+
+function handleAuthExpired(){
+  accessToken = null;
+  document.getElementById('connStatus').textContent = 'Sesión expirada — reconéctate';
+  alert('Tu sesión con Google expiró. Vuelve a conectar para seguir editando.');
+}
+
+/* ---------- API helpers ---------- */
+async function apiGet(url){
+  const res = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
+  if(res.status===401){ handleAuthExpired(); throw new Error('401'); }
+  if(!res.ok){ throw new Error('Error API ' + res.status + ': ' + (await res.text())); }
+  return res.json();
+}
+async function apiWrite(method, url, body){
+  const res = await fetch(url, {
+    method,
+    headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type':'application/json' },
+    body: JSON.stringify(body)
+  });
+  if(res.status===401){ handleAuthExpired(); throw new Error('401'); }
+  if(!res.ok){ throw new Error('Error API ' + res.status + ': ' + (await res.text())); }
+  return res.json();
+}
+
+/* ---------- Data loading ---------- */
+async function bootstrapData(){
+  try{
+    const data = await apiGet(`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}?fields=sheets.properties,properties.title`);
+    sheetsMeta = data.sheets.map(s=>s.properties);
+    const sel = document.getElementById('sheetSelect');
+    sel.innerHTML = sheetsMeta.map(s=>`<option value="${escapeHtml(s.title)}">${escapeHtml(s.title)}</option>`).join('');
+    const def = sheetsMeta.find(s=>s.sheetId===CONFIG.DEFAULT_SHEET_ID) || sheetsMeta[0];
+    currentSheetTitle = def.title;
+    sel.value = def.title;
+    document.getElementById('sheetSub').textContent = (data.properties && data.properties.title ? data.properties.title + ' · ' : '') + 'hoja: ' + def.title;
+    await loadSheetData();
+  }catch(err){
+    if(err.message!=='401') alert('No se pudo cargar la hoja: ' + err.message);
+  }
+}
+document.getElementById('sheetSelect').addEventListener('change', async (e)=>{
+  currentSheetTitle = e.target.value;
+  document.getElementById('sheetSub').textContent = 'hoja: ' + currentSheetTitle;
+  await loadSheetData();
+});
+document.getElementById('btnRefresh').addEventListener('click', loadSheetData);
+
+async function loadSheetData(){
+  const range = encodeURIComponent(`'${currentSheetTitle}'!A1:Z`);
+  const data = await apiGet(`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${range}`);
+  const values = data.values || [];
+  headerRow = values[0] || [];
+  colIndex = {};
+  headerRow.forEach((h,i)=>{
+    const key = HEADER_ALIASES[normalizeHeader(h)];
+    if(key) colIndex[key] = i;
+  });
+  rows = values.slice(1).map((r,i)=>({ rowNumber:i+2, values:r }));
+  populateEstadoFilter();
+  applyFilters();
+}
+
+function populateEstadoFilter(){
+  const set = new Set();
+  rows.forEach(r=>{ const v=get(r,'estado').trim(); if(v) set.add(v.toUpperCase()); });
+  const sel = document.getElementById('filterEstado');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Todos los estados</option>' +
+    [...set].sort().map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  sel.value = current;
+}
+
+/* ---------- Filters ---------- */
+['filterEstado','filterDate'].forEach(id=> document.getElementById(id).addEventListener('change', applyFilters));
+document.getElementById('filterSearch').addEventListener('input', debounce(applyFilters, 200));
+function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
+
+function applyFilters(){
+  const statusVal = document.getElementById('filterEstado').value;
+  const q = document.getElementById('filterSearch').value.trim().toLowerCase();
+  const datePreset = document.getElementById('filterDate').value;
+  const now = new Date();
+  filteredRows = rows.filter(r=>{
+    if(statusVal && get(r,'estado').trim().toUpperCase()!==statusVal) return false;
+    if(q){
+      const hay = [get(r,'nombre'),get(r,'pedido'),get(r,'producto'),get(r,'telefono')].join(' ').toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    if(datePreset && datePreset!=='all'){
+      const d = parseFecha(get(r,'fecha'));
+      if(!d) return false;
+      const diffDays = (now-d)/(1000*60*60*24);
+      if(datePreset==='7' && (diffDays>7||diffDays<0)) return false;
+      if(datePreset==='30' && (diffDays>30||diffDays<0)) return false;
+      if(datePreset==='month' && !(d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear())) return false;
+      if(datePreset==='today' && d.toDateString()!==now.toDateString()) return false;
+    }
+    return true;
+  });
+  currentPage = 1;
+  renderKpis();
+  renderCharts();
+  renderTable();
+}
+
+/* ---------- KPIs ---------- */
+function renderKpis(){
+  const total = filteredRows.length;
+  const entregados = filteredRows.filter(r=>get(r,'estado').trim().toUpperCase()==='ENTREGADO');
+  const ingresos = entregados.reduce((s,r)=>s+parseMoney(get(r,'precio')),0);
+  const comisiones = filteredRows.reduce((s,r)=>s+parseMoney(get(r,'comision')),0);
+  const ticket = entregados.length ? ingresos/entregados.length : 0;
+  const tasa = total ? (entregados.length/total*100) : 0;
+  const clientes = new Set(filteredRows.map(r=>(get(r,'telefono')||get(r,'nombre')).trim()).filter(Boolean)).size;
+  document.getElementById('kpiPedidos').textContent = total.toLocaleString('es-SV');
+  document.getElementById('kpiIngresos').textContent = fmtMoney(ingresos);
+  document.getElementById('kpiTicket').textContent = fmtMoney(ticket);
+  document.getElementById('kpiTasa').textContent = tasa.toFixed(1)+'%';
+  document.getElementById('kpiComisiones').textContent = fmtMoney(comisiones);
+  document.getElementById('kpiClientes').textContent = clientes.toLocaleString('es-SV');
+}
+
+/* ---------- Charts ---------- */
+const STATUS_STYLE = {
+  'ENTREGADO': {color:'var(--good)', label:'Entregado'},
+  'DEVOLUCION': {color:'var(--serious)', label:'Devolución'},
+  'DEVOLUCIÓN': {color:'var(--serious)', label:'Devolución'},
+  'ANULADO': {color:'var(--critical)', label:'Anulado'},
+  'ANULADOS': {color:'var(--critical)', label:'Anulado'},
+  'RECOLECTADO': {color:'var(--warning)', label:'Recolectado'},
+};
+function statusStyle(raw){
+  const key = (raw||'').trim().toUpperCase();
+  return STATUS_STYLE[key] || {color:'var(--series-1)', label: raw && raw.trim() ? raw : 'Sin estado'};
+}
+
+function renderCharts(){
+  renderStatusChart();
+  renderProductsChart();
+  renderClientesTable();
+  renderRevenueChart();
+}
+
+function renderStatusChart(){
+  const counts = {};
+  filteredRows.forEach(r=>{ const raw=get(r,'estado').trim()||'(Sin estado)'; counts[raw]=(counts[raw]||0)+1; });
+  const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  const max = entries.length ? entries[0][1] : 1;
+  const el = document.getElementById('chartStatus');
+  el.innerHTML = entries.length ? entries.map(([raw,count])=>{
+    const st = statusStyle(raw);
+    return `<div class="bar-row">
+      <span class="bar-label"><span class="status-dot" style="background:${st.color}"></span>${escapeHtml(st.label)}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${(count/max*100).toFixed(1)}%; background:${st.color}"></div></div>
+      <span class="bar-value">${count}</span>
+    </div>`;
+  }).join('') : '<p class="empty">Sin datos</p>';
+}
+
+function renderProductsChart(){
+  const sums = {};
+  filteredRows.forEach(r=>{
+    if(get(r,'estado').trim().toUpperCase()!=='ENTREGADO') return;
+    const p = get(r,'producto').trim() || '(Sin producto)';
+    sums[p] = (sums[p]||0) + parseMoney(get(r,'precio'));
+  });
+  const entries = Object.entries(sums).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const max = entries.length ? entries[0][1] : 1;
+  const el = document.getElementById('chartProducts');
+  el.innerHTML = entries.length ? entries.map(([name,sum])=>`
+    <div class="bar-row">
+      <span class="bar-label" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${(sum/max*100).toFixed(1)}%; background:var(--series-1)"></div></div>
+      <span class="bar-value">${fmtMoney(sum)}</span>
+    </div>`).join('') : '<p class="empty">Sin datos</p>';
+}
+
+function renderClientesTable(){
+  const map = {};
+  filteredRows.forEach(r=>{
+    const key = (get(r,'telefono')||get(r,'nombre')).trim();
+    if(!key) return;
+    if(!map[key]) map[key] = { nombre:get(r,'nombre')||key, pedidos:0, total:0 };
+    map[key].pedidos += 1;
+    if(get(r,'estado').trim().toUpperCase()==='ENTREGADO') map[key].total += parseMoney(get(r,'precio'));
+  });
+  const entries = Object.values(map).sort((a,b)=>b.total-a.total).slice(0,8);
+  const el = document.getElementById('tableClientes');
+  el.innerHTML = entries.length ? entries.map(c=>`
+    <tr><td>${escapeHtml(c.nombre)}</td><td>${c.pedidos}</td><td>${fmtMoney(c.total)}</td></tr>
+  `).join('') : '<tr><td colspan="3" class="empty">Sin datos</td></tr>';
+}
+
+function renderRevenueChart(){
+  const byDay = {};
+  filteredRows.forEach(r=>{
+    if(get(r,'estado').trim().toUpperCase()!=='ENTREGADO') return;
+    const d = parseFecha(get(r,'fecha'));
+    if(!d) return;
+    const key = d.toISOString().slice(0,10);
+    byDay[key] = (byDay[key]||0) + parseMoney(get(r,'precio'));
+  });
+  const days = Object.keys(byDay).sort();
+  const svg = document.getElementById('svgRevenue');
+  if(!days.length){ svg.innerHTML=''; svg.parentElement.querySelector('.empty')?.remove();
+    const p=document.createElement('p'); p.className='empty'; p.textContent='Sin datos'; svg.after(p); return; }
+  svg.parentElement.querySelectorAll('.empty').forEach(e=>e.remove());
+  const values = days.map(d=>byDay[d]);
+  const max = Math.max(...values, 1);
+  const W = svg.clientWidth || 520, H = 180, padL=44, padB=20, padT=10, padR=10;
+  const innerW = W-padL-padR, innerH = H-padT-padB;
+  const x = i => padL + (days.length<=1 ? innerW/2 : (i/(days.length-1))*innerW);
+  const y = v => padT + innerH - (v/max)*innerH;
+  let path = 'M ' + values.map((v,i)=>`${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' L ');
+  let area = path + ` L ${x(values.length-1).toFixed(1)} ${(padT+innerH).toFixed(1)} L ${x(0).toFixed(1)} ${(padT+innerH).toFixed(1)} Z`;
+  const gridLines = [0,0.5,1].map(f=>{
+    const gy = padT + innerH*(1-f);
+    return `<line x1="${padL}" x2="${W-padR}" y1="${gy}" y2="${gy}" stroke="var(--grid)" stroke-width="1"/>
+      <text x="${padL-6}" y="${gy+3}" font-size="10" fill="var(--text-muted)" text-anchor="end">${fmtMoney(max*f).replace('.00','')}</text>`;
+  }).join('');
+  const points = values.map((v,i)=>`<circle data-i="${i}" cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3.5" fill="var(--series-1)"></circle>`).join('');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML = `
+    ${gridLines}
+    <line x1="${padL}" x2="${W-padR}" y1="${padT+innerH}" y2="${padT+innerH}" stroke="var(--baseline)" stroke-width="1"/>
+    <path d="${area}" fill="var(--series-1)" fill-opacity="0.12" stroke="none"></path>
+    <path d="${path}" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></path>
+    ${points}
+  `;
+  const tooltip = document.getElementById('tooltip');
+  svg.querySelectorAll('circle').forEach(c=>{
+    c.addEventListener('mousemove', (e)=>{
+      const i = +c.dataset.i;
+      tooltip.style.display='block';
+      tooltip.style.left = (e.clientX+12)+'px';
+      tooltip.style.top = (e.clientY+12)+'px';
+      tooltip.innerHTML = `<strong>${days[i]}</strong><br>${fmtMoney(values[i])}`;
+    });
+    c.addEventListener('mouseleave', ()=> tooltip.style.display='none');
+  });
+}
+
+/* ---------- Editable table ---------- */
+function renderTable(){
+  const thead = '<tr>' + VISIBLE_COLUMNS.map(k=>`<th>${COLUMN_LABELS[k]}</th>`).join('') + '</tr>';
+  const start = (currentPage-1)*PAGE_SIZE;
+  const pageRows = filteredRows.slice(start, start+PAGE_SIZE);
+  const tbody = pageRows.map(r=>{
+    const cells = VISIBLE_COLUMNS.map(k=>{
+      const idx = colIndex[k];
+      const val = idx!=null ? (r.values[idx]||'') : '';
+      const editable = idx!=null && !READONLY_KEYS.has(k);
+      return `<td ${editable?'contenteditable="true"':''} data-row="${r.rowNumber}" data-col="${idx}" data-key="${k}">${escapeHtml(val)}</td>`;
+    }).join('');
+    return `<tr>${cells}</tr>`;
+  }).join('');
+  document.getElementById('tableHead').innerHTML = thead;
+  document.getElementById('tableBody').innerHTML = tbody || `<tr><td colspan="${VISIBLE_COLUMNS.length}" class="empty">Sin resultados</td></tr>`;
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length/PAGE_SIZE));
+  document.getElementById('pageInfo').textContent = `Página ${currentPage} de ${totalPages} · ${filteredRows.length} pedidos`;
+  document.getElementById('btnPrev').disabled = currentPage<=1;
+  document.getElementById('btnNext').disabled = currentPage>=totalPages;
+  attachEditHandlers();
+}
+document.getElementById('btnPrev').addEventListener('click', ()=>{ if(currentPage>1){ currentPage--; renderTable(); } });
+document.getElementById('btnNext').addEventListener('click', ()=>{
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length/PAGE_SIZE));
+  if(currentPage<totalPages){ currentPage++; renderTable(); }
+});
+
+function attachEditHandlers(){
+  document.querySelectorAll('#tableBody td[contenteditable]').forEach(td=>{
+    td.addEventListener('focus', e=>{ e.target.dataset.original = e.target.textContent; });
+    td.addEventListener('blur', onCellBlur);
+    td.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); e.target.blur(); } });
+  });
+}
+
+async function onCellBlur(e){
+  const td = e.target;
+  const newVal = td.textContent;
+  if(newVal === td.dataset.original) return;
+  const rowNum = parseInt(td.dataset.row,10);
+  const colIdx = parseInt(td.dataset.col,10);
+  td.classList.add('saving');
+  try{
+    const colL = colLetter(colIdx);
+    const range = encodeURIComponent(`'${currentSheetTitle}'!${colL}${rowNum}`);
+    await apiWrite('PUT', `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${range}?valueInputOption=USER_ENTERED`, { values:[[newVal]] });
+    const row = rows.find(r=>r.rowNumber===rowNum);
+    if(row) row.values[colIdx] = newVal;
+    td.classList.remove('saving'); td.classList.add('saved');
+    setTimeout(()=>td.classList.remove('saved'), 1200);
+    renderKpis(); renderCharts();
+  }catch(err){
+    td.classList.remove('saving'); td.classList.add('error');
+    td.textContent = td.dataset.original;
+    setTimeout(()=>td.classList.remove('error'), 1600);
+    if(err.message!=='401') alert('No se pudo guardar el cambio: ' + err.message);
+  }
+}
+
+document.getElementById('btnAddRow').addEventListener('click', async ()=>{
+  const newRowArr = new Array(headerRow.length).fill('');
+  try{
+    const range = encodeURIComponent(`'${currentSheetTitle}'!A1`);
+    await apiWrite('POST', `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, { values:[newRowArr] });
+    await loadSheetData();
+    const totalPages = Math.max(1, Math.ceil(filteredRows.length/PAGE_SIZE));
+    currentPage = totalPages;
+    renderTable();
+  }catch(err){
+    if(err.message!=='401') alert('No se pudo agregar la fila: ' + err.message);
+  }
+});
+</script>
+<script src="https://accounts.google.com/gsi/client" async defer onload="initGis()"></script>
+</body>
+</html>
