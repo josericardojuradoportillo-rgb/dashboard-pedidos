@@ -233,8 +233,13 @@ const COLUMN_LABELS = {fecha:'Fecha',pedido:'# Pedido',guia:'# Guía',nombre:'No
   producto:'Producto',municipio:'Municipio',departamento:'Departamento',precio:'Precio',estado:'Estado',
   estado_pago:'Estado pago',envio:'Envío',comision:'Comisión',pagado:'Pagado',fecha_pago:'Fecha pago'};
 
+function stripAccents(s){
+  return String(s||'')
+    .replace(/[áàäâ]/gi,'a').replace(/[éèëê]/gi,'e').replace(/[íìïî]/gi,'i')
+    .replace(/[óòöô]/gi,'o').replace(/[úùüû]/gi,'u').replace(/[ñ]/gi,'n');
+}
 function normalizeHeader(h){
-  return (h||'').toString().replace(/^#/, '').normalize('NFD').replace(/[̀-ͯ]/g,'')
+  return stripAccents((h||'').toString().replace(/^#/, ''))
     .toUpperCase().replace(/\s+/g,' ').trim();
 }
 function colLetter(index){
@@ -256,7 +261,7 @@ function parseFecha(str){
   str = String(str).trim();
   let m = str.match(/(\d{1,2})\s+de\s+([a-záéíóúñ]+)\s+de\s+(\d{4})/i);
   if(m){
-    const mk = m[2].normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+    const mk = stripAccents(m[2]).toLowerCase();
     const mon = MESES[mk];
     if(mon!=null) return new Date(parseInt(m[3],10), mon, parseInt(m[1],10));
   }
