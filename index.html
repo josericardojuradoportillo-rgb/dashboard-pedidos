@@ -144,11 +144,11 @@
       <button class="btn" id="btnAddRow">+ Nuevo pedido</button>
     </div>
 
-    <div class="kpi-grid">
+    <div class="banner" id="metaAdsPanel">      <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px;">        <strong>Meta Ads:</strong>        <input type="text" id="metaTokenInput" placeholder="Pega tu access token de Meta Ads (se guarda solo en este navegador)" style="flex:1; min-width:260px;">        <button class="btn" id="btnSaveMetaToken">Guardar token</button>        <button class="btn" id="btnClearMetaToken">Borrar token</button>        <span id="metaAdsStatus" class="sub">Sin token guardado</span>      </div>    </div>    <div class="kpi-grid">
       <div class="card kpi-tile"><div class="kpi-label">Pedidos</div><div class="kpi-value" id="kpiPedidos">–</div></div>
       <div class="card kpi-tile"><div class="kpi-label">Ingresos entregados</div><div class="kpi-value" id="kpiIngresos">–</div></div>
       <div class="card kpi-tile"><div class="kpi-label">Ticket promedio</div><div class="kpi-value" id="kpiTicket">–</div></div>
-      <div class="card kpi-tile"><div class="kpi-label">Tasa de entrega</div><div class="kpi-value" id="kpiTasa">–</div></div>
+      <div class="card kpi-tile"><div class="kpi-label">Tasa de entrega</div><div class="kpi-value" id="kpiTasa">–</div></div>      <div class="card kpi-tile"><div class="kpi-label">Tasa de despacho</div><div class="kpi-value" id="kpiTasaDespacho">–</div></div>
       <div class="card kpi-tile"><div class="kpi-label">Comisiones (envío)</div><div class="kpi-value" id="kpiComisiones">–</div></div>
       <div class="card kpi-tile"><div class="kpi-label">Ganancia neta</div><div class="kpi-value" id="kpiGanancia">–</div></div>      <div class="card kpi-tile"><div class="kpi-label">Margen de ganancia</div><div class="kpi-value" id="kpiMargen">–</div></div>      <div class="card kpi-tile"><div class="kpi-label">Clientes únicos</div><div class="kpi-value" id="kpiClientes">–</div></div>
     </div>
@@ -204,7 +204,7 @@ const CONFIG = {
   CLIENT_ID: '722476102008-9n76piq1v1phmrsesk135a0me3ri9v6c.apps.googleusercontent.com',
   SPREADSHEET_ID: '1Z8joni3pgds996gmoCy8eZmh2kRtoJ8PRsfBnqekyrA',
   DEFAULT_SHEET_ID: 1967861913,
-  SCOPES: 'https://www.googleapis.com/auth/spreadsheets', COST_SHEET: 'CONFIG_PRODUCTOS', ADSPEND_SHEET: 'GASTOS_ADS',
+  SCOPES: 'https://www.googleapis.com/auth/spreadsheets',  COST_SHEET: 'CONFIG_PRODUCTOS',  ADSPEND_SHEET: 'GASTOS_ADS',  META_AD_ACCOUNTS: ['1683261669077157', '4320858651466086'],
 };
 /* ========================================= */
 
@@ -217,20 +217,20 @@ let colIndex = {};
 let rows = [];
 let filteredRows = [];
 let currentPage = 1;
-const PAGE_SIZE = 50; let costConfig = []; let costDataAvailable = false; let adSpendRows = []; let adSpendDataAvailable = false;
+const PAGE_SIZE = 50;let costConfig = []; let costDataAvailable = false; let adSpendRows = []; let adSpendDataAvailable = false;const META_TOKEN_KEY = 'metaAdsAccessToken';let metaAdSpendTotal = 0;let metaAdSpendStatus = 'sin_token';let metaAdSpendError = '';
 
 const HEADER_ALIASES = {
   'FECHA':'fecha','PEDIDO':'pedido','GUIA':'guia','NOMBRE':'nombre','TELEFONO':'telefono',
   'PRODUCTO':'producto','DIRECCION':'direccion','MUNICIPIO':'municipio','DEPARTAMENTO':'departamento',
   'PRECIO':'precio','ESTADO':'estado','ESTADO DE PAGO':'estado_pago','ENVIO':'envio','COMISION':'comision',
   'PAGADO':'pagado','FECHA DE PAGO':'fecha_pago','FECHA DEVOLUCION':'fecha_devolucion',
-  'FECHA PREPARACION':'fecha_preparacion','T ENTREGA':'t_entrega','VER ESTADO':'ver_estado'
+  'FECHA PREPARACION':'fecha_preparacion','T ENTREGA':'t_entrega','VER ESTADO':'ver_estado','COSTO':'costo'
 };
 const READONLY_KEYS = new Set(['t_entrega','ver_estado']);
 const VISIBLE_COLUMNS = ['fecha','pedido','guia','nombre','telefono','producto','municipio','departamento',
-  'precio','estado','estado_pago','envio','comision','pagado','fecha_pago'];
+  'precio','costo','estado','estado_pago','envio','comision','pagado','fecha_pago'];
 const COLUMN_LABELS = {fecha:'Fecha',pedido:'# Pedido',guia:'# Guía',nombre:'Nombre',telefono:'Teléfono',
-  producto:'Producto',municipio:'Municipio',departamento:'Departamento',precio:'Precio',estado:'Estado',
+  producto:'Producto',municipio:'Municipio',departamento:'Departamento',precio:'Precio',costo:'Costo',estado:'Estado',
   estado_pago:'Estado pago',envio:'Envío',comision:'Comisión',pagado:'Pagado',fecha_pago:'Fecha pago'};
 
 function stripAccents(s){
@@ -352,7 +352,7 @@ async function bootstrapData(){
     currentSheetTitle = def.title;
     sel.value = def.title;
     document.getElementById('sheetSub').textContent = (data.properties && data.properties.title ? data.properties.title + ' · ' : '') + 'hoja: ' + def.title;
-    await loadExtraSheets();    await loadSheetData();
+    await loadSheetData();    refreshMetaSpend();
   }catch(err){
     if(err.message!=='401') alert('No se pudo cargar la hoja: ' + err.message);
   }
@@ -362,7 +362,7 @@ document.getElementById('sheetSelect').addEventListener('change', async (e)=>{
   document.getElementById('sheetSub').textContent = 'hoja: ' + currentSheetTitle;
   await loadSheetData();
 });
-document.getElementById('btnRefresh').addEventListener('click', async ()=>{ await loadExtraSheets(); await loadSheetData(); });
+document.getElementById('btnRefresh').addEventListener('click', async ()=>{  await loadSheetData();  refreshMetaSpend();});
 
 async function loadSheetData(){
   const range = encodeURIComponent(`'${currentSheetTitle}'!A1:Z`);
@@ -390,7 +390,7 @@ function populateEstadoFilter(){
 }
 
 /* ---------- Filters ---------- */
-['filterEstado','filterDate'].forEach(id=> document.getElementById(id).addEventListener('change', applyFilters));
+document.getElementById('filterEstado').addEventListener('change', applyFilters);document.getElementById('filterDate').addEventListener('change', ()=>{ applyFilters(); refreshMetaSpend(); });
 document.getElementById('filterSearch').addEventListener('input', debounce(applyFilters, 200));
 function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; } function matchesDatePreset(d, datePreset, now){ if(!datePreset || datePreset==='all') return true; if(!d) return false; const diffDays = (now-d)/(1000*60*60*24); if(datePreset==='7') return diffDays<=7 && diffDays>=0; if(datePreset==='30') return diffDays<=30 && diffDays>=0; if(datePreset==='month') return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear(); if(datePreset==='today') return d.toDateString()===now.toDateString(); return true; } async function loadExtraSheets(){ try{ const range = encodeURIComponent(`'${CONFIG.COST_SHEET}'!A1:Z`); const data = await apiGet(`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${range}`); costConfig = parseCostConfig(data.values || []); costDataAvailable = true; }catch(err){ costConfig = []; costDataAvailable = false; if(err.message!=='401') console.warn('No se pudo leer la hoja de costos', err.message); } try{ const range2 = encodeURIComponent(`'${CONFIG.ADSPEND_SHEET}'!A1:Z`); const data2 = await apiGet(`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${range2}`); adSpendRows = parseAdSpend(data2.values || []); adSpendDataAvailable = true; }catch(err){ adSpendRows = []; adSpendDataAvailable = false; if(err.message!=='401') console.warn('No se pudo leer la hoja de gasto de ads', err.message); } } function parseCostConfig(values){ if(!values.length) return []; const headers = values[0]; const officialIdx = headers.findIndex(h=>normalizeLoose(h).includes('PRODUCTOOFICIAL')); const costIdx = headers.findIndex(h=>normalizeLoose(h).includes('COSTO')); const keywordIdxs = headers.map((h,i)=>normalizeLoose(h).startsWith('KEYWORD')?i:-1).filter(i=>i>=0); if(officialIdx<0 && keywordIdxs.length===0) return []; return values.slice(1).map(r=>({ oficial: officialIdx>=0 ? (r[officialIdx]||'').trim() : '', costo: costIdx>=0 ? parseMoney(r[costIdx]) : 0, keywords: keywordIdxs.map(i=>(r[i]||'').trim()).filter(Boolean), })).filter(r=>r.oficial || r.keywords.length); } function parseAdSpend(values){ if(!values.length) return []; const headers = values[0]; const dateIdx = headers.findIndex(h=>normalizeLoose(h).includes('FECHA')); const gastoIdx = headers.findIndex(h=>normalizeLoose(h).includes('GASTO')); if(dateIdx<0 || gastoIdx<0) return []; return values.slice(1).map(r=>({ date: parseFecha(r[dateIdx]), gasto: parseMoney(r[gastoIdx]), })).filter(r=>r.date); } function extractQty(productoRaw){ const m = String(productoRaw||'').trim().match(/^(\d+)\s*[xX]?\.?\s+/); const n = m ? parseInt(m[1],10) : 1; return (n && n>0) ? n : 1; } function findProductCost(productoRaw){ const text = normalizeText(productoRaw); if(!text) return null; for(const entry of costConfig){ const oficial = normalizeText(entry.oficial); if(oficial && text.includes(oficial)){ return { costo: entry.costo, canonical: entry.oficial }; } } for(const entry of costConfig){ for(const kw of entry.keywords){ const k = normalizeText(kw); if(k && text.includes(k)){ return { costo: entry.costo, canonical: entry.oficial || kw }; } } } return null; } function sumAdSpend(datePreset, now){ return adSpendRows.reduce((s,r)=> matchesDatePreset(r.date, datePreset, now) ? s+r.gasto : s, 0); }
 
@@ -425,7 +425,7 @@ function applyFilters(){
 /* ---------- KPIs ---------- */
 function renderKpis(){
   const total = filteredRows.length;
-  const entregados = filteredRows.filter(r=>get(r,'estado').trim().toUpperCase()==='ENTREGADO');
+  const entregados = filteredRows.filter(r=>get(r,'estado').trim().toUpperCase()==='ENTREGADO');  const despachados = filteredRows.filter(r=>['ENTREGADO','DEVOLUCION','DEVOLUCIÓN','RECOLECTADO'].includes(get(r,'estado').trim().toUpperCase()));
   const ingresos = entregados.reduce((s,r)=>s+parseMoney(get(r,'precio')),0);
   const comisiones = filteredRows.reduce((s,r)=>s+parseMoney(get(r,'comision')),0);
   const ticket = entregados.length ? ingresos/entregados.length : 0;
@@ -434,9 +434,9 @@ function renderKpis(){
   document.getElementById('kpiPedidos').textContent = total.toLocaleString('es-SV');
   document.getElementById('kpiIngresos').textContent = fmtMoney(ingresos);
   document.getElementById('kpiTicket').textContent = fmtMoney(ticket);
-  document.getElementById('kpiTasa').textContent = tasa.toFixed(1)+'%';
+  document.getElementById('kpiTasa').textContent = tasa.toFixed(1)+'%';  const tasaDespacho = total ? (despachados.length/total*100) : 0;  document.getElementById('kpiTasaDespacho').textContent = tasaDespacho.toFixed(1)+'%';
   document.getElementById('kpiComisiones').textContent = fmtMoney(comisiones);
-  document.getElementById('kpiClientes').textContent = clientes.toLocaleString('es-SV'); const datePreset = document.getElementById('filterDate').value; const now = new Date(); let costoProductos = 0, matched = 0; entregados.forEach(r=>{ const producto = get(r,'producto'); const found = findProductCost(producto); if(found){ costoProductos += found.costo * extractQty(producto); matched++; } }); const gastoFB = adSpendDataAvailable ? sumAdSpend(datePreset, now) : 0; const gananciaNeta = ingresos - costoProductos - comisiones - gastoFB; const margen = ingresos>0 ? (gananciaNeta/ingresos*100) : 0; document.getElementById('kpiGanancia').textContent = fmtMoney(gananciaNeta); document.getElementById('kpiMargen').textContent = margen.toFixed(1)+'%'; const note = document.getElementById('kpiRentNote'); if(!costDataAvailable && !adSpendDataAvailable){ note.style.display='block'; note.textContent = `No se encontraron las hojas "${CONFIG.COST_SHEET}" y "${CONFIG.ADSPEND_SHEET}" — la Ganancia neta no resta costo de producto ni gasto de ads todavía.`; }else{ note.style.display='block'; const parts = []; parts.push(costDataAvailable ? `${matched} de ${entregados.length} pedidos entregados con costo de producto identificado (hoja ${CONFIG.COST_SHEET})` : `Falta la hoja "${CONFIG.COST_SHEET}" — no se está restando el costo de producto`); parts.push(adSpendDataAvailable ? `Gasto de Facebook Ads en el periodo: ${fmtMoney(gastoFB)}` : `Falta la hoja "${CONFIG.ADSPEND_SHEET}" — no se está restando el gasto de ads`); note.textContent = parts.join(' · '); }
+  document.getElementById('kpiClientes').textContent = clientes.toLocaleString('es-SV');  const costoDisponible = colIndex['costo']!=null;  const costoProductos = costoDisponible ? entregados.reduce((s,r)=>s+parseMoney(get(r,'costo')),0) : 0;  const gastoFB = metaAdSpendStatus==='ok' ? metaAdSpendTotal : 0;  const gananciaNeta = ingresos - costoProductos - comisiones - gastoFB;  const margen = ingresos>0 ? (gananciaNeta/ingresos*100) : 0;  document.getElementById('kpiGanancia').textContent = fmtMoney(gananciaNeta);  document.getElementById('kpiMargen').textContent = margen.toFixed(1)+'%';  const note = document.getElementById('kpiRentNote');  const notas = [];  if(!costoDisponible) notas.push('Agrega una columna "COSTO" en tu hoja PEDIDOS 2026 (costo de cada pedido) para que la Ganancia neta y el margen sean exactos.');  if(metaAdSpendStatus==='sin_token') notas.push('Conecta tu token de Meta Ads arriba para restar el gasto de publicidad de la Ganancia neta.');  else if(metaAdSpendStatus==='error') notas.push('No se pudo obtener el gasto de Meta Ads: ' + metaAdSpendError);  if(notas.length){ note.style.display='block'; note.textContent = notas.join(' · '); }  else { note.style.display='none'; }
 }
 
 /* ---------- Charts ---------- */
@@ -559,7 +559,7 @@ function renderRevenueChart(){
   });
 }
 
-function renderRentabilidadChart(){ const el = document.getElementById('chartRentabilidad'); const resumenEl = document.getElementById('resumenRentabilidad'); if(!el || !resumenEl) return; if(!costDataAvailable){ el.innerHTML = `<p class="empty">Agrega la hoja "${CONFIG.COST_SHEET}" (PRODUCTO OFICIAL, KEYWORD_1..5, COSTO (USD)) para ver rentabilidad por producto.</p>`; resumenEl.innerHTML = ''; return; } const sums = {}; let ingresosTotales = 0, costoTotal = 0, sinCosto = 0; filteredRows.forEach(r=>{ if(get(r,'estado').trim().toUpperCase()!=='ENTREGADO') return; const producto = get(r,'producto'); const precio = parseMoney(get(r,'precio')); ingresosTotales += precio; const found = findProductCost(producto); if(!found){ sinCosto += precio; return; } const costo = found.costo * extractQty(producto); costoTotal += costo; const key = found.canonical || producto.trim() || '(Sin producto)'; if(!sums[key]) sums[key] = { ingresos:0, costo:0 }; sums[key].ingresos += precio; sums[key].costo += costo; }); const entries = Object.entries(sums).map(([name,v])=>[name, v.ingresos-v.costo]).sort((a,b)=>b[1]-a[1]).slice(0,8); const max = entries.length ? Math.max(...entries.map(e=>Math.abs(e[1])), 1) : 1; el.innerHTML = entries.length ? entries.map(([name,profit])=>`<div class="bar-row"><span class="bar-label" title="${escapeHtml(name)}">${escapeHtml(name)}</span><div class="bar-track"><div class="bar-fill" style="width:${(Math.abs(profit)/max*100).toFixed(1)}%; background:${profit>=0?'var(--good)':'var(--critical)'}"></div></div><span class="bar-value">${fmtMoney(profit)}</span></div>`).join('') : '<p class="empty">Sin pedidos entregados con costo identificado en este periodo</p>'; const comisionesTotales = filteredRows.reduce((s,r)=>s+parseMoney(get(r,'comision')),0); const datePreset = document.getElementById('filterDate').value; const gastoFB = adSpendDataAvailable ? sumAdSpend(datePreset, new Date()) : 0; const gananciaNeta = ingresosTotales - costoTotal - comisionesTotales - gastoFB; const filas = [ ['Ingresos entregados', ingresosTotales, false], ['− Costo de productos', -costoTotal, true], ['− Comisiones (envío)', -comisionesTotales, true], ['− Gasto Facebook Ads', -gastoFB, true], ['= Ganancia neta', gananciaNeta, false], ]; resumenEl.innerHTML = filas.map(([label,val,neg])=>`<div class="bar-row" style="justify-content:space-between;"><span class="bar-label" style="width:auto; flex:1;">${escapeHtml(label)}</span><span class="bar-value" style="width:auto; font-weight:${label.startsWith('=')?'800':'600'};">${fmtMoney(val)}</span></div>`).join('') + (sinCosto>0 ? `<p class="empty" style="text-align:left; padding:8px 0 0;">Ingresos sin costo identificado (no se restaron): ${fmtMoney(sinCosto)}</p>` : ''); } /* ---------- Editable table ---------- */
+function renderRentabilidadChart(){  const el = document.getElementById('chartRentabilidad');  const resumenEl = document.getElementById('resumenRentabilidad');  if(!el || !resumenEl) return;  if(colIndex['costo']==null){    el.innerHTML = '<p class="empty">Agrega una columna "COSTO" en tu hoja PEDIDOS 2026 (costo de cada pedido) para ver rentabilidad por producto.</p>';    resumenEl.innerHTML = '';    return;  }  const sums = {};  let ingresosTotales = 0, costoTotal = 0;  filteredRows.forEach(r=>{    if(get(r,'estado').trim().toUpperCase()!=='ENTREGADO') return;    const producto = (get(r,'producto')||'').toString().trim() || '(Sin producto)';    const precio = parseMoney(get(r,'precio'));    const costo = parseMoney(get(r,'costo'));    ingresosTotales += precio;    costoTotal += costo;    if(!sums[producto]) sums[producto] = { ingresos:0, costo:0 };    sums[producto].ingresos += precio;    sums[producto].costo += costo;  });  const entries = Object.entries(sums).map(([name,v])=>[name, v.ingresos-v.costo]).sort((a,b)=>b[1]-a[1]).slice(0,8);  const max = entries.length ? Math.max(...entries.map(e=>Math.abs(e[1])), 1) : 1;  el.innerHTML = entries.length ? entries.map(([name,profit])=>`<div class="bar-row"><span class="bar-label" title="${escapeHtml(name)}">${escapeHtml(name)}</span><div class="bar-track"><div class="bar-fill" style="width:${(Math.abs(profit)/max*100).toFixed(1)}%; background:${profit>=0?'var(--good)':'var(--critical)'}"></div></div><span class="bar-value">${fmtMoney(profit)}</span></div>`).join('') : '<p class="empty">Sin pedidos entregados en este periodo</p>';  const comisionesTotales = filteredRows.reduce((s,r)=>s+parseMoney(get(r,'comision')),0);  const gastoFB = metaAdSpendStatus==='ok' ? metaAdSpendTotal : 0;  const gananciaNeta = ingresosTotales - costoTotal - comisionesTotales - gastoFB;  const filas = [    ['Ingresos entregados', ingresosTotales, false],    ['− Costo de productos', -costoTotal, true],    ['− Comisiones (envío)', -comisionesTotales, true],    ['− Gasto Meta Ads', -gastoFB, true],    ['= Ganancia neta', gananciaNeta, false],  ];  resumenEl.innerHTML = filas.map(([label,val])=>`<div class="bar-row" style="justify-content:space-between;"><span class="bar-label" style="width:auto; flex:1;">${escapeHtml(label)}</span><span class="bar-value" style="width:auto; font-weight:${label.startsWith('=')?'800':'600'};">${fmtMoney(val)}</span></div>`).join('') + (metaAdSpendStatus!=='ok' ? '<p class="empty" style="text-align:left; padding:8px 0 0;">Conecta tu token de Meta Ads arriba para incluir el gasto publicitario.</p>' : '');}/* ---------- Editable table ---------- */
 function renderTable(){
   const thead = '<tr>' + VISIBLE_COLUMNS.map(k=>`<th>${COLUMN_LABELS[k]}</th>`).join('') + '</tr>';
   const start = (currentPage-1)*PAGE_SIZE;
@@ -619,12 +619,12 @@ async function onCellBlur(e){
   }
 }
 
-document.getElementById('btnAddRow').addEventListener('click', async ()=>{
+function getMetaToken(){  try{ return localStorage.getItem(META_TOKEN_KEY) || ''; }catch(e){ return ''; }}function saveMetaToken(token){  try{ localStorage.setItem(META_TOKEN_KEY, token); }catch(e){}}function clearMetaToken(){  try{ localStorage.removeItem(META_TOKEN_KEY); }catch(e){}}function metaDatePreset(internal){  if(internal==='today') return 'today';  if(internal==='7') return 'last_7d';  if(internal==='30') return 'last_30d';  if(internal==='month') return 'this_month';  return 'maximum';}async function refreshMetaSpend(){  const statusEl = document.getElementById('metaAdsStatus');  const token = getMetaToken();  if(!token){    metaAdSpendStatus = 'sin_token';    metaAdSpendTotal = 0;    if(statusEl) statusEl.textContent = 'Sin token guardado';    renderKpis(); renderRentabilidadChart();    return;  }  metaAdSpendStatus = 'cargando';  if(statusEl) statusEl.textContent = 'Cargando gasto de Meta Ads...';  const datePreset = metaDatePreset(document.getElementById('filterDate').value);  try{    let total = 0;    for(const acct of CONFIG.META_AD_ACCOUNTS){      const url = `https://graph.facebook.com/v19.0/act_${acct}/insights?fields=spend&date_preset=${datePreset}&access_token=${encodeURIComponent(token)}`;      const res = await fetch(url);      const data = await res.json();      if(data.error) throw new Error(data.error.message || 'Token inválido o sin permiso');      (data.data || []).forEach(r=>{ total += parseFloat(r.spend||0) || 0; });    }    metaAdSpendTotal = total;    metaAdSpendStatus = 'ok';    metaAdSpendError = '';    if(statusEl) statusEl.textContent = 'Gasto Meta Ads en el periodo: ' + fmtMoney(total);  }catch(err){    metaAdSpendStatus = 'error';    metaAdSpendError = err.message;    if(statusEl) statusEl.textContent = 'Error: ' + err.message;  }  renderKpis(); renderRentabilidadChart();}document.getElementById('btnSaveMetaToken').addEventListener('click', ()=>{  const val = document.getElementById('metaTokenInput').value.trim();  if(!val) return;  saveMetaToken(val);  document.getElementById('metaTokenInput').value = '';  refreshMetaSpend();});document.getElementById('btnClearMetaToken').addEventListener('click', ()=>{  clearMetaToken();  metaAdSpendTotal = 0;  metaAdSpendStatus = 'sin_token';  metaAdSpendError = '';  document.getElementById('metaAdsStatus').textContent = 'Sin token guardado';  renderKpis(); renderRentabilidadChart();});(function initMetaTokenUi(){  if(getMetaToken()) document.getElementById('metaAdsStatus').textContent = 'Token guardado';})();document.getElementById('btnAddRow').addEventListener('click', async ()=>{
   const newRowArr = new Array(headerRow.length).fill('');
   try{
     const range = encodeURIComponent(`'${currentSheetTitle}'!A1`);
     await apiWrite('POST', `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, { values:[newRowArr] });
-    await loadExtraSheets();    await loadSheetData();
+    await loadSheetData();    refreshMetaSpend();
     const totalPages = Math.max(1, Math.ceil(filteredRows.length/PAGE_SIZE));
     currentPage = totalPages;
     renderTable();
